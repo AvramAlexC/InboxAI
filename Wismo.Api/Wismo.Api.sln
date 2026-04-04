@@ -1,0 +1,31 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.10.35122.118
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Wismo.Api", "Wismo.Api.csproj", "{444E7967-9F04-4834-8148-26F7C4973921}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Wismo.Api.Tests", "..\Wismo.Api.Tests\Wismo.Api.Tests.csproj", "{5A7EE010-DDF7-456C-B46D-DCE52FEEE327}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{444E7967-9F04-4834-8148-26F7C4973921}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{444E7967-9F04-4834-8148-26F7C4973921}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{444E7967-9F04-4834-8148-26F7C4973921}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{444E7967-9F04-4834-8148-26F7C4973921}.Release|Any CPU.Build.0 = Release|Any CPU
+		{5A7EE010-DDF7-456C-B46D-DCE52FEEE327}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{5A7EE010-DDF7-456C-B46D-DCE52FEEE327}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{5A7EE010-DDF7-456C-B46D-DCE52FEEE327}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{5A7EE010-DDF7-456C-B46D-DCE52FEEE327}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {C49A1151-0FFB-407B-B4AF-30DA068C133A}
+	EndGlobalSection
+EndGlobal

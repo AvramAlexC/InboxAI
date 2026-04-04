@@ -1,0 +1,32 @@
+@Wismo.Api_HostAddress = http://localhost:5255
+
+GET {{Wismo.Api_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
+
+POST {{Wismo.Api_HostAddress}}/api/webhooks/shopify/orders/create
+Content-Type: application/json
+X-Shopify-Shop-Domain: demo-store.myshopify.com
+X-Shopify-Hmac-Sha256: <computed-base64-hmac>
+
+{
+  "id": 55123,
+  "name": "#1001",
+  "order_number": 1001,
+  "email": "client@example.com",
+  "created_at": "2026-03-10T09:45:00Z"
+}
+
+###
+
+POST {{Wismo.Api_HostAddress}}/api/tickets/classify-preview
+Authorization: Bearer <jwt>
+Content-Type: application/json
+
+{
+  "customerEmail": "",
+  "messageBody": "Unde e pachetul meu? Comanda #ABC123, email ion.popescu@example.com"
+}
+
+###
