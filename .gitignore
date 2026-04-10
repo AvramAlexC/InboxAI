@@ -28,6 +28,9 @@ dist-ssr/
 # Claude Code
 .claude/
 
+# Test results
+TestResults/
+
 # Logs
 logs/
 *.log
