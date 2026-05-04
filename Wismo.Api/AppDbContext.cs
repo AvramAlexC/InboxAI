@@ -26,8 +26,14 @@ public class AppDbContext : DbContext
             .HasQueryFilter(ticket => CurrentTenantId.HasValue && ticket.TenantId == CurrentTenantId.Value);
 
         modelBuilder.Entity<StoreUser>()
+            .HasQueryFilter(user => CurrentTenantId.HasValue && user.TenantId == CurrentTenantId.Value);
+
+        modelBuilder.Entity<StoreUser>()
             .HasIndex(user => user.Email)
             .IsUnique();
+
+        modelBuilder.Entity<ShopifyStoreConnection>()
+            .HasQueryFilter(connection => CurrentTenantId.HasValue && connection.TenantId == CurrentTenantId.Value);
 
         modelBuilder.Entity<ShopifyStoreConnection>()
             .HasIndex(connection => connection.ShopDomain)
