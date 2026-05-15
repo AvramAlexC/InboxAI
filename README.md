@@ -15,7 +15,7 @@ I wanted a sandbox where I could practice the patterns I read about but rarely g
 - **CQRS with MediatR** — small, focused handlers instead of fat services.
 - **Resilience with Polly** — retry and circuit-breaker policies on outbound HTTP, not bolted-on after the fact.
 - **Real test coverage** — xUnit + Moq + FluentAssertions, with handler-level tests covering happy paths, edge cases, and cross-mock call ordering.
-- **Multi-tenancy done properly** — tenant resolution, isolation, and data scoping as first-class concerns rather than a single global query filter.
+- **Multi-tenancy done properly** — tenant resolution, default-deny data scoping across all tenant-owned entities, with explicit opt-out for cross-tenant reads.
 - **Real-time updates** — SignalR for ticket and order-status changes pushed to the client.
 
 The domain — automated support replies for Romanian Shopify stores — is incidental; it gives me realistic constraints (OAuth, courier APIs, AI-generated drafts) without being so complex that it distracts from the engineering practice.
@@ -89,7 +89,11 @@ A few choices worth calling out, because they're the kind of thing I'd want to d
 
 **Why Polly wrapping every outbound HTTP call.** Courier APIs in Romania are inconsistent — timeouts, sporadic 5xx, occasional rate limits. Building retry/circuit-breaker into a typed `HttpClient` from day one is much cheaper than retrofitting it after the first production incident.
 
-**Tenant isolation strategy.** Currently uses an EF Core global query filter on `SupportTicket` as the first layer of isolation — convenient and covers the common case. The known gap: global filters can be bypassed (`.IgnoreQueryFilters()`, raw SQL), so on the roadmap is lifting tenant resolution to explicit handler-level predicates for defense-in-depth. Calling this out because it's exactly the kind of trade-off that's easy to leave unexamined.
+**Tenant isolation strategy.** EF Core global query filters are applied to every tenant-owned entity — `SupportTicket`, `StoreUser`, `ShopifyStoreConnection` — giving default-deny scoping at the `DbContext` level. The few legitimate cross-tenant reads opt out explicitly via `.IgnoreQueryFilters()` at the call site, which makes intentional boundary crossings visible in code review.
+
+I considered the alternative — handler-level predicates (`Where(x => x.TenantId == ctx.TenantId)` in each query) — and rejected it for two reasons. First, a forgotten predicate in a new handler is a silent tenant leak, while a missing global filter on an entity is detectable at `DbContext` setup. Second, the predicate gets repeated in every query for no real safety gain, since both approaches still rely on the developer.
+
+Trade-off I'll own: tenant scope isn't visible in any individual handler without knowing the `DbContext`-level convention. Acceptable, because the alternative pushes complexity into every handler without actually reducing risk.
 
 **Why xUnit + Moq for handler tests instead of integration tests first.** Integration tests are on the roadmap, but handler-level tests are the highest-ROI starting point: they cover business logic without the cost of spinning up a test database. Integration tests come next, layered on top, not as a substitute.
 
