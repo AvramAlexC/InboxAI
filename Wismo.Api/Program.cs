@@ -95,6 +95,7 @@ builder.Services.AddAuthorization();
 builder.Services.Configure<CourierIntegrationOptions>(builder.Configuration.GetSection("Couriers"));
 builder.Services.Configure<AwbTrackingOptions>(builder.Configuration.GetSection("AwbTracking"));
 builder.Services.Configure<ShopifyWebhookOptions>(builder.Configuration.GetSection("Shopify:Webhook"));
+builder.Services.AddSingleton<IShopifyWebhookVerifier, ShopifyWebhookVerifier>();
 builder.Services.Configure<ShopifyOAuthOptions>(builder.Configuration.GetSection("Shopify:OAuth"));
 builder.Services.Configure<OpenAiResilienceOptions>(builder.Configuration.GetSection("OpenAI:Resilience"));
 

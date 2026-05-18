@@ -1,5 +1,4 @@
 using Microsoft.Extensions.Options;
-using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Wismo.Api.Models;
@@ -34,6 +33,7 @@ public static class ShopifyWebhookEndpoints
         IShopifyStoreConnectionRepository connectionRepository,
         IUnitOfWork unitOfWork,
         IOptionsMonitor<ShopifyWebhookOptions> optionsMonitor,
+        IShopifyWebhookVerifier webhookVerifier,
         ILoggerFactory loggerFactory,
         ITenantNotificationService tenantNotificationService,
         CancellationToken cancellationToken)
@@ -59,10 +59,22 @@ public static class ShopifyWebhookEndpoints
         var shopDomain = request.Headers["X-Shopify-Shop-Domain"].FirstOrDefault();
         var providedHmac = request.Headers["X-Shopify-Hmac-Sha256"].FirstOrDefault();
 
-        if (!IsShopifySignatureValid(payload, providedHmac, options.SharedSecret, logger))
+        var verification = webhookVerifier.Verify(payload, providedHmac);
+        switch (verification)
         {
-            logger.LogWarning("Shopify webhook signature invalid. ShopDomain={ShopDomain}", shopDomain);
-            return Results.Unauthorized();
+            case ShopifyWebhookVerificationResult.Valid:
+                break;
+            case ShopifyWebhookVerificationResult.MissingHeader:
+                logger.LogWarning("Shopify webhook missing HMAC header. ShopDomain={ShopDomain}", shopDomain);
+                return Results.Unauthorized();
+            case ShopifyWebhookVerificationResult.Invalid:
+                logger.LogWarning("Shopify webhook signature invalid. ShopDomain={ShopDomain}", shopDomain);
+                return Results.Unauthorized();
+            case ShopifyWebhookVerificationResult.NotConfigured:
+                throw new InvalidOperationException(
+                    "Shopify webhook signature verification is not configured: SharedSecret is missing. This is a deployment configuration bug.");
+            default:
+                return Results.Unauthorized();
         }
 
         var tenantId = await ResolveTenantIdAsync(shopDomain, options, connectionRepository, cancellationToken);
@@ -189,30 +201,6 @@ public static class ShopifyWebhookEndpoints
         }
 
         return null;
-    }
-
-    private static bool IsShopifySignatureValid(string payload, string? providedHmac, string sharedSecret, ILogger logger)
-    {
-        if (string.IsNullOrWhiteSpace(sharedSecret))
-        {
-            logger.LogWarning("Shopify:Webhook:SharedSecret is not configured. HMAC validation is skipped.");
-            return true;
-        }
-
-        if (string.IsNullOrWhiteSpace(providedHmac))
-        {
-            return false;
-        }
-
-        using var hmac = new HMACSHA256(Encoding.UTF8.GetBytes(sharedSecret));
-        var computedBytes = hmac.ComputeHash(Encoding.UTF8.GetBytes(payload));
-        var computedHmac = Convert.ToBase64String(computedBytes);
-
-        var providedBytes = Encoding.UTF8.GetBytes(providedHmac.Trim());
-        var computedCompareBytes = Encoding.UTF8.GetBytes(computedHmac);
-
-        return providedBytes.Length == computedCompareBytes.Length &&
-               CryptographicOperations.FixedTimeEquals(providedBytes, computedCompareBytes);
     }
 
     private static string? TryGetString(JsonElement root, params string[] path)
