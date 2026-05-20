@@ -26,7 +26,8 @@ jobs:
         run: dotnet restore Wismo.Api/Wismo.Api.sln
 
       - name: Build
-        run: dotnet build Wismo.Api/Wismo.Api.sln --configuration Release --no-restore
+        # -p:TreatWarningsAsErrors=true => CI fails on compiler/analyzer warnings, not just errors.
+        run: dotnet build Wismo.Api/Wismo.Api.sln --configuration Release --no-restore -p:TreatWarningsAsErrors=true
 
       - name: Test
         run: dotnet test Wismo.Api/Wismo.Api.sln --configuration Release --no-build --verbosity normal
