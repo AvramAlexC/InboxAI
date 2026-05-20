@@ -16,5 +16,7 @@ module.exports = {
       'warn',
       { allowConstantExport: true },
     ],
+    // Project does not use PropTypes (package not installed); rely on usage/tests instead.
+    'react/prop-types': 'off',
   },
 }

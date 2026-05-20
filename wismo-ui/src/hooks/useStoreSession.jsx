@@ -113,6 +113,7 @@ export function StoreSessionProvider({ children }) {
   )
 }
 
+// eslint-disable-next-line react-refresh/only-export-components -- provider + hook colocated by design
 export function useStoreSession() {
   const context = useContext(StoreSessionContext)
 

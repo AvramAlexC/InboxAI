@@ -1,5 +1,4 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import axios from 'axios'
 
 // Mock sessionStorage module before importing apiClient
 vi.mock('../session/sessionStorage.js', () => ({
@@ -7,8 +6,6 @@ vi.mock('../session/sessionStorage.js', () => ({
   clearSessionFromStorage: vi.fn(),
   notifySessionExpired: vi.fn(),
 }))
-
-import { getAccessTokenFromStorage, clearSessionFromStorage, notifySessionExpired } from '../session/sessionStorage.js'
 
 describe('apiClient', () => {
   let apiClient
