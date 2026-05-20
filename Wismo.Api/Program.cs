@@ -26,17 +26,23 @@ using WismoAI.Core.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Lets the app run as a Windows Service in production; no-op when started from a console.
+builder.Host.UseWindowsService();
+
 builder.Services.AddMediatR(cfg =>
 {
     cfg.RegisterServicesFromAssembly(Assembly.GetExecutingAssembly());
     cfg.AddOpenBehavior(typeof(ValidationBehavior<,>));
 });
 
+var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
+    ?? new[] { "http://localhost:5173" };
+
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowReactApp", policy =>
     {
-        policy.WithOrigins("http://localhost:5173")
+        policy.WithOrigins(allowedOrigins)
               .AllowAnyHeader()
               .AllowAnyMethod();
     });
@@ -133,7 +139,7 @@ builder.Services.AddQuartzHostedService(options =>
 });
 
 builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseSqlite("Data Source=wismo.db"));
+    options.UseSqlite(builder.Configuration.GetConnectionString("Default") ?? "Data Source=wismo.db"));
 
 builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 builder.Services.AddScoped<ITenantRepository, TenantRepository>();
@@ -143,6 +149,7 @@ builder.Services.AddScoped<IShopifyStoreConnectionRepository, ShopifyStoreConnec
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+builder.Services.AddHealthChecks();
 
 builder.Services.AddValidatorsFromAssembly(Assembly.GetExecutingAssembly());
 builder.Services.AddExceptionHandler<WismoAI.Api.Middleware.GlobalExceptionHandler>();
@@ -272,6 +279,7 @@ app.MapTicketEndpoints();
 app.MapShopifyAuthEndpoints();
 app.MapShopifyWebhookEndpoints();
 app.MapHub<TenantDashboardHub>(TenantDashboardHub.HubPath);
+app.MapHealthChecks("/health");
 
 app.Run();
 
