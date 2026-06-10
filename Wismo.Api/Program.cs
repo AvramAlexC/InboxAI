@@ -251,10 +251,7 @@ app.UseAuthorization();
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    db.Database.EnsureCreated();
-
-    EnsureStoreUsersTable(db);
-    EnsureShopifyStoreConnectionsTable(db);
+    db.Database.Migrate();
 
     if (!db.SupportTickets.IgnoreQueryFilters().Any())
     {
@@ -282,41 +279,3 @@ app.MapHub<TenantDashboardHub>(TenantDashboardHub.HubPath);
 app.MapHealthChecks("/health");
 
 app.Run();
-
-static void EnsureStoreUsersTable(AppDbContext db)
-{
-    db.Database.ExecuteSqlRaw(
-        @"CREATE TABLE IF NOT EXISTS StoreUsers (
-            Id INTEGER PRIMARY KEY AUTOINCREMENT,
-            Email TEXT NOT NULL,
-            PasswordHash TEXT NOT NULL,
-            PasswordSalt TEXT NOT NULL,
-            Name TEXT NOT NULL,
-            TenantId INTEGER NOT NULL,
-            IsActive INTEGER NOT NULL DEFAULT 1,
-            CreatedAt TEXT NOT NULL,
-            FOREIGN KEY (TenantId) REFERENCES Tenants(Id) ON DELETE CASCADE
-        );");
-
-    db.Database.ExecuteSqlRaw(
-        @"CREATE UNIQUE INDEX IF NOT EXISTS IX_StoreUsers_Email ON StoreUsers(Email);");
-}
-
-static void EnsureShopifyStoreConnectionsTable(AppDbContext db)
-{
-    db.Database.ExecuteSqlRaw(
-        @"CREATE TABLE IF NOT EXISTS ShopifyStoreConnections (
-            Id INTEGER PRIMARY KEY AUTOINCREMENT,
-            ShopDomain TEXT NOT NULL,
-            AccessToken TEXT NOT NULL,
-            Scopes TEXT NOT NULL,
-            IsActive INTEGER NOT NULL DEFAULT 1,
-            CreatedAt TEXT NOT NULL,
-            UpdatedAt TEXT NOT NULL,
-            TenantId INTEGER NOT NULL,
-            FOREIGN KEY (TenantId) REFERENCES Tenants(Id) ON DELETE CASCADE
-        );");
-
-    db.Database.ExecuteSqlRaw(
-        @"CREATE UNIQUE INDEX IF NOT EXISTS IX_ShopifyStoreConnections_ShopDomain ON ShopifyStoreConnections(ShopDomain);");
-}
