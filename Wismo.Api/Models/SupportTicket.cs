@@ -10,6 +10,7 @@ public class SupportTicket
     public string MessageBody { get; set; } = string.Empty;
     public string Intent { get; set; } = "UNKNOWN";
     public string? DraftResponse { get; set; }
+    public OrderStatus OrderStatus { get; set; } = OrderStatus.Open;
 
     public int TenantId { get; set; }
     public Tenant? Tenant { get; set; }

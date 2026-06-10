@@ -25,6 +25,11 @@ public class AppDbContext : DbContext
         modelBuilder.Entity<SupportTicket>()
             .HasQueryFilter(ticket => CurrentTenantId.HasValue && ticket.TenantId == CurrentTenantId.Value);
 
+        modelBuilder.Entity<SupportTicket>()
+            .Property(ticket => ticket.OrderStatus)
+            .HasConversion<string>()
+            .HasDefaultValue(OrderStatus.Open);
+
         modelBuilder.Entity<StoreUser>()
             .HasQueryFilter(user => CurrentTenantId.HasValue && user.TenantId == CurrentTenantId.Value);
 
