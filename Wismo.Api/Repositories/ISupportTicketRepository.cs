@@ -8,6 +8,8 @@ public interface ISupportTicketRepository
     Task<List<TicketResponseDto>> GetAllWithTenantAsync(CancellationToken cancellationToken = default);
     Task<List<SupportTicket>> GetByStatusesIgnoringFiltersAsync(string[] statuses, CancellationToken cancellationToken = default);
     Task<bool> ExistsIgnoringFiltersAsync(int tenantId, string orderNumber, string intent, CancellationToken cancellationToken = default);
+    Task<SupportTicket?> FindIgnoringFiltersAsync(int tenantId, string orderNumber, string intent, CancellationToken cancellationToken = default);
+    Task<SupportTicket?> FindByShopifyOrderIdIgnoringFiltersAsync(int tenantId, string shopifyOrderId, string intent, CancellationToken cancellationToken = default);
     Task<List<StatusCount>> GetStatusCountsAsync(CancellationToken cancellationToken = default);
     void Add(SupportTicket ticket);
 }
