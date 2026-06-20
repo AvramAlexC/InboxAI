@@ -5,5 +5,6 @@ public record TicketResponseDto(
     string CustomerEmail,
     string OrderNumber,
     string Status,
+    string OrderStatus,
     string TenantName
 );

@@ -28,13 +28,16 @@ function App() {
   const [lastUpdatedAt, setLastUpdatedAt] = useState(null)
   const [realtimeState, setRealtimeState] = useState('disconnected')
   const [error, setError] = useState(null)
+  const [showCancelled, setShowCancelled] = useState(false)
 
   const ticketRows = useMemo(() => {
-    return tickets.map(ticket => ({
-      ticket,
-      awb: parseAwbReference(ticket.orderNumber)
-    }))
-  }, [tickets])
+    return tickets
+      .filter(ticket => showCancelled || ticket.orderStatus !== 'Cancelled')
+      .map(ticket => ({
+        ticket,
+        awb: parseAwbReference(ticket.orderNumber)
+      }))
+  }, [tickets, showCancelled])
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -298,6 +301,14 @@ function App() {
             </p>
           </div>
           <div style={{ color: '#475569', fontSize: 13, display: 'flex', alignItems: 'center', gap: 8 }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                checked={showCancelled}
+                onChange={event => setShowCancelled(event.target.checked)}
+              />
+              <span>Arata comenzile anulate</span>
+            </label>
             <span>{lastUpdatedAt ? `Ultimul refresh: ${lastUpdatedAt.toLocaleTimeString('ro-RO')}` : 'Astept primul refresh...'}</span>
             <span style={getRealtimeBadgeStyle(realtimeState)}>{getRealtimeLabel(realtimeState)}</span>
             {isRefreshing && <span style={{ color: '#2563eb', fontWeight: 600 }}>Actualizare...</span>}
