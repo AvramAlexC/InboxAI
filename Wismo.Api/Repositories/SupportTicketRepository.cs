@@ -14,6 +14,7 @@ public sealed class SupportTicketRepository(AppDbContext db) : ISupportTicketRep
                 t.CustomerEmail,
                 t.OrderNumber,
                 t.Status,
+                t.OrderStatus.ToString(),
                 t.Tenant == null ? "N/A" : t.Tenant.Name))
             .ToListAsync(cancellationToken);
 
