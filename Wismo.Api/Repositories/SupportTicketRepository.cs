@@ -32,6 +32,28 @@ public sealed class SupportTicketRepository(AppDbContext db) : ISupportTicketRep
                           ticket.Intent == intent,
                 cancellationToken);
 
+    // Webhook arrives without a JWT; the tenant is already resolved from the shop domain, so the
+    // lookup must opt out of the tenant query filter. Tracked (no AsNoTracking) so the caller can mutate.
+    public Task<SupportTicket?> FindIgnoringFiltersAsync(int tenantId, string orderNumber, string intent, CancellationToken cancellationToken = default)
+        => db.SupportTickets
+            .IgnoreQueryFilters()
+            .FirstOrDefaultAsync(
+                ticket => ticket.TenantId == tenantId &&
+                          ticket.OrderNumber == orderNumber &&
+                          ticket.Intent == intent,
+                cancellationToken);
+
+    // orders/delete payloads carry only the numeric Shopify order id, never name/order_number, so the
+    // delete handler must match on ShopifyOrderId. Same tenant-filter opt-out and tracking as the lookup above.
+    public Task<SupportTicket?> FindByShopifyOrderIdIgnoringFiltersAsync(int tenantId, string shopifyOrderId, string intent, CancellationToken cancellationToken = default)
+        => db.SupportTickets
+            .IgnoreQueryFilters()
+            .FirstOrDefaultAsync(
+                ticket => ticket.TenantId == tenantId &&
+                          ticket.ShopifyOrderId == shopifyOrderId &&
+                          ticket.Intent == intent,
+                cancellationToken);
+
     public Task<List<StatusCount>> GetStatusCountsAsync(CancellationToken cancellationToken = default)
         => db.SupportTickets
             .GroupBy(ticket => ticket.Status)
