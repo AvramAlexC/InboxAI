@@ -124,21 +124,6 @@ public static class ShopifyAuthEndpoints
             shopInfo,
             cancellationToken);
 
-        var webhookAddress = BuildWebhookAddress(options);
-        var webhookRegistered = await RegisterOrderCreateWebhookAsync(
-            httpClientFactory,
-            options,
-            shop,
-            tokenResult.AccessToken,
-            webhookAddress,
-            logger,
-            cancellationToken);
-
-        if (!webhookRegistered)
-        {
-            logger.LogWarning("Shopify webhook registration returned non-success for shop {Shop}", shop);
-        }
-
         var login = jwtTokenService.CreateToken(provisioned.User.Email, provisioned.User.Name, provisioned.Tenant.Id);
         var frontendRedirectUrl = BuildFrontendSuccessRedirect(options.FrontendUrl, login);
 
@@ -269,7 +254,34 @@ public static class ShopifyAuthEndpoints
             return null;
         }
 
-        var scope = TryGetString(document.RootElement, "scope") ?? string.Empty;
+        // Managed install nu întoarce "scope" în răspunsul de token-exchange, așa că
+        // citim scope-urile efectiv acordate printr-un al doilea apel. Degradare grațioasă:
+        // dacă apelul eșuează sau array-ul e gol, lăsăm Scope = "" și NU blocăm install-ul.
+        var scope = string.Empty;
+        using (var scopesRequest = new HttpRequestMessage(
+            HttpMethod.Get, $"https://{shopDomain}/admin/oauth/access_scopes.json"))
+        {
+            scopesRequest.Headers.TryAddWithoutValidation("X-Shopify-Access-Token", accessToken);
+
+            using var scopesResponse = await client.SendAsync(scopesRequest, cancellationToken);
+            if (scopesResponse.IsSuccessStatusCode)
+            {
+                await using var scopesStream = await scopesResponse.Content.ReadAsStreamAsync(cancellationToken);
+                using var scopesDocument = await JsonDocument.ParseAsync(scopesStream, cancellationToken: cancellationToken);
+
+                if (scopesDocument.RootElement.TryGetProperty("access_scopes", out var scopesArray) &&
+                    scopesArray.ValueKind == JsonValueKind.Array)
+                {
+                    var handles = scopesArray
+                        .EnumerateArray()
+                        .Select(element => TryGetString(element, "handle"))
+                        .Where(handle => !string.IsNullOrWhiteSpace(handle));
+
+                    scope = string.Join(",", handles);
+                }
+            }
+        }
+
         return new ShopifyAccessTokenResult(accessToken, scope);
     }
 
@@ -303,48 +315,6 @@ public static class ShopifyAuthEndpoints
         var email = TryGetString(shopElement, "email") ?? string.Empty;
 
         return new ShopifyShopInfo(name, email);
-    }
-
-    private static async Task<bool> RegisterOrderCreateWebhookAsync(
-        IHttpClientFactory httpClientFactory,
-        ShopifyOAuthOptions options,
-        string shopDomain,
-        string accessToken,
-        string webhookAddress,
-        ILogger logger,
-        CancellationToken cancellationToken)
-    {
-        var client = httpClientFactory.CreateClient();
-
-        using var request = new HttpRequestMessage(HttpMethod.Post, $"https://{shopDomain}/admin/api/{options.ApiVersion}/webhooks.json");
-        request.Headers.TryAddWithoutValidation("X-Shopify-Access-Token", accessToken);
-        request.Content = JsonContent.Create(new
-        {
-            webhook = new
-            {
-                topic = "orders/create",
-                address = webhookAddress,
-                format = "json"
-            }
-        });
-
-        using var response = await client.SendAsync(request, cancellationToken);
-
-        if (response.IsSuccessStatusCode)
-        {
-            return true;
-        }
-
-        var body = await response.Content.ReadAsStringAsync(cancellationToken);
-
-        if ((int)response.StatusCode is 409 or 422)
-        {
-            logger.LogInformation("Shopify webhook already exists or cannot be duplicated for {Shop}. Body={Body}", shopDomain, body);
-            return true;
-        }
-
-        logger.LogWarning("Shopify webhook registration failed for {Shop}. Status={Status}. Body={Body}", shopDomain, response.StatusCode, body);
-        return false;
     }
 
     private static bool IsCallbackHmacValid(IQueryCollection query, string providedHmac, string clientSecret)
@@ -437,9 +407,6 @@ public static class ShopifyAuthEndpoints
 
     private static string BuildOAuthRedirectUri(ShopifyOAuthOptions options)
         => $"{options.PublicAppUrl.TrimEnd('/')}/api/shopify/connect/callback";
-
-    private static string BuildWebhookAddress(ShopifyOAuthOptions options)
-        => $"{options.PublicAppUrl.TrimEnd('/')}/api/webhooks/shopify/orders/create";
 
     private static string BuildFrontendSuccessRedirect(string frontendUrl, LoginResponse login)
     {

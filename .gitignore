@@ -28,6 +28,9 @@ dist-ssr/
 # Claude Code
 .claude/
 
+# Shopify CLI (local project state)
+.shopify/
+
 # Test results
 TestResults/
 

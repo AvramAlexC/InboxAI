@@ -1,0 +1,45 @@
+# Shopify app configuration for WISMO AI
+# Docs: https://shopify.dev/docs/apps/build/cli-for-apps/app-configuration
+#
+# WHY THIS FILE IS REQUIRED (confirmed empirically 2026-06-06):
+# This app is on Shopify "managed install". The `scope=` querystring sent to
+# /admin/oauth/authorize is IGNORED, so OAuth grants no scopes. Proof: registering
+# the orders/create webhook returned HTTP 422 "Invalid topic specified: orders/create
+# ... Is there a missing access scope?" with a Topics-allowed list containing ONLY
+# lifecycle/privacy webhooks — i.e. read_orders was never granted. Scopes are the
+# source of truth ONLY when declared here and pushed with `shopify app deploy`.
+#
+# Workflow:
+#   shopify app config link    # link to the Partner Dashboard app
+#   shopify app deploy         # publish scopes + webhook subscriptions (REQUIRED)
+
+client_id = "1be925a9a3528f153bd85feef86b0e4e"
+name = "WISMO AI"
+
+# Public HTTPS base URL of Wismo.Api (stable dev URL; matches
+# Shopify:OAuth:PublicAppUrl in .NET user-secrets).
+application_url = "https://dev.inboxai.ro"
+embedded = false
+
+[access_scopes]
+# read_orders is the only standard scope this app needs (order reads + orders/create
+# webhook). Matches ShopifyAuthEndpoints.DefaultScopes and Shopify:OAuth:Scopes.
+scopes = "read_orders"
+
+[auth]
+redirect_urls = [
+  "https://dev.inboxai.ro/api/shopify/connect/callback"
+]
+
+[webhooks]
+api_version = "2025-01"
+
+  # Declared here so Shopify registers it on install once read_orders is granted.
+  # This supersedes the manual REST registration in RegisterOrderCreateWebhookAsync,
+  # which fails with 422 until the scope is deployed declaratively.
+  [[webhooks.subscriptions]]
+  topics = [ "orders/create" ]
+  uri = "https://dev.inboxai.ro/api/webhooks/shopify/orders/create"
+
+[pos]
+embedded = false
