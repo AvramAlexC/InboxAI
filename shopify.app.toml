@@ -41,5 +41,12 @@ api_version = "2025-01"
   topics = [ "orders/create" ]
   uri = "https://dev.inboxai.ro/api/webhooks/shopify/orders/create"
 
+  # orders/delete carries only the numeric order id; the delete handler matches on
+  # ShopifyOrderId (see PR #6). Without this subscription Shopify never delivers the
+  # delete callback, so that matching would never fire.
+  [[webhooks.subscriptions]]
+  topics = [ "orders/delete" ]
+  uri = "https://dev.inboxai.ro/api/webhooks/shopify/orders/delete"
+
 [pos]
 embedded = false
