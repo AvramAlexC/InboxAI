@@ -41,6 +41,13 @@ api_version = "2025-01"
   topics = [ "orders/create" ]
   uri = "https://dev.inboxai.ro/api/webhooks/shopify/orders/create"
 
+  # orders/updated keeps OrderStatus in sync after install (e.g. Open -> Fulfilled).
+  # Without this subscription Shopify never delivers the update, so a fulfilled order
+  # keeps showing stale "Open" in the dashboard. The handler matches on ShopifyOrderId.
+  [[webhooks.subscriptions]]
+  topics = [ "orders/updated" ]
+  uri = "https://dev.inboxai.ro/api/webhooks/shopify/orders/updated"
+
   # orders/delete carries only the numeric order id; the delete handler matches on
   # ShopifyOrderId (see PR #6). Without this subscription Shopify never delivers the
   # delete callback, so that matching would never fire.
