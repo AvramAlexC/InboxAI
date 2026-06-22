@@ -255,31 +255,36 @@ public static class ShopifyWebhookEndpoints
         {
             var root = document.RootElement;
 
-            var orderIdentifier = FirstNonEmpty(
-                TryGetString(root, "name"),
-                TryGetString(root, "order_number"),
-                TryGetString(root, "id"));
+            // orders/updated carries the full order payload; match on the stable numeric id,
+            // mirroring orders/delete (see PR #6) so both mutation handlers key off ShopifyOrderId.
+            var shopifyOrderId = TryGetString(root, "id");
 
-            if (string.IsNullOrWhiteSpace(orderIdentifier))
+            if (string.IsNullOrWhiteSpace(shopifyOrderId))
             {
                 return Results.BadRequest(new { Message = "Payload-ul nu contine un identificator de comanda." });
             }
 
-            var normalizedOrderNumber = orderIdentifier.StartsWith("SHOPIFY:", StringComparison.OrdinalIgnoreCase)
-                ? orderIdentifier
-                : $"SHOPIFY:{orderIdentifier}";
-
-            var ticket = await ticketRepository.FindIgnoringFiltersAsync(
-                tenant.Id, normalizedOrderNumber, OrderCreatedIntent, cancellationToken);
+            var ticket = await ticketRepository.FindByShopifyOrderIdIgnoringFiltersAsync(
+                tenant.Id, shopifyOrderId, OrderCreatedIntent, cancellationToken);
 
             if (ticket is null)
             {
                 // orders/updated can fire for orders we never ingested via orders/create. Ignore gracefully —
                 // do not create a ticket here.
                 logger.LogInformation(
-                    "Shopify order/updated for unknown order, ignoring. TenantId={TenantId}, OrderNumber={OrderNumber}",
-                    tenant.Id, normalizedOrderNumber);
-                return Results.Ok(new { Message = "Comanda nu este urmarita, actualizare ignorata.", OrderNumber = normalizedOrderNumber });
+                    "Shopify order/updated for unknown order, ignoring. TenantId={TenantId}, ShopifyOrderId={ShopifyOrderId}",
+                    tenant.Id, shopifyOrderId);
+                return Results.Ok(new { Message = "Comanda nu este urmarita, actualizare ignorata.", ShopifyOrderId = shopifyOrderId });
+            }
+
+            if (ticket.OrderStatus == OrderStatus.Cancelled)
+            {
+                // Cancelled is terminal and owned by orders/delete (soft-cancel). A later orders/updated
+                // must never regress a cancelled order back to Open/Fulfilled.
+                logger.LogInformation(
+                    "Shopify order/updated ignored for cancelled order. TicketId={TicketId}, OrderStatus={OrderStatus}",
+                    ticket.Id, ticket.OrderStatus);
+                return Results.Ok(new { TicketId = ticket.Id, ticket.OrderNumber, OrderStatus = ticket.OrderStatus.ToString() });
             }
 
             var fulfillmentStatus = TryGetString(root, "fulfillment_status");
