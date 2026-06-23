@@ -323,6 +323,7 @@ function App() {
                 <th style={headerCellStyle}>Courier</th>
                 <th style={headerCellStyle}>AWB</th>
                 <th style={headerCellStyle}>Status</th>
+                <th style={headerCellStyle}>Order</th>
                 <th style={headerCellStyle}>Client</th>
                 <th style={headerCellStyle}>Store</th>
               </tr>
@@ -330,7 +331,7 @@ function App() {
             <tbody>
               {ticketRows.length === 0 && (
                 <tr>
-                  <td colSpan={6} style={{ padding: 18, textAlign: 'center', color: '#64748b' }}>
+                  <td colSpan={7} style={{ padding: 18, textAlign: 'center', color: '#64748b' }}>
                     Nu exista inca ticket-uri pentru tenantul curent.
                   </td>
                 </tr>
@@ -343,6 +344,9 @@ function App() {
                   <td style={{ ...bodyCellStyle, fontFamily: 'monospace', fontWeight: 600 }}>{awb?.awb ?? ((ticket.orderNumber ?? '').trim() || 'N/A')}</td>
                   <td style={bodyCellStyle}>
                     <span style={getStatusBadgeStyle(ticket.status)}>{ticket.status}</span>
+                  </td>
+                  <td style={bodyCellStyle}>
+                    <OrderStatusBadge orderStatus={ticket.orderStatus} />
                   </td>
                   <td style={bodyCellStyle}>{ticket.customerEmail}</td>
                   <td style={bodyCellStyle}>{ticket.tenantName}</td>
@@ -442,6 +446,50 @@ function getStatusBadgeStyle(status) {
     background: '#e2e8f0',
     color: '#334155'
   }
+}
+
+// OrderStatus (order state) is distinct from Status (ticket state). Backend enum
+// values: Open, Fulfilled, Cancelled. Rendered as an outlined badge with a leading
+// dot so it is never confused with the filled Status pill above.
+const ORDER_STATUS_META = {
+  open: { label: 'Open', color: '#92400e', background: '#fffbeb', dot: '#d97706' },
+  fulfilled: { label: 'Fulfilled', color: '#166534', background: '#f0fdf4', dot: '#16a34a' },
+  cancelled: { label: 'Cancelled', color: '#9f1239', background: '#fff1f2', dot: '#e11d48' }
+}
+
+function OrderStatusBadge({ orderStatus }) {
+  const normalized = (orderStatus ?? '').trim().toLowerCase()
+
+  if (!normalized) {
+    return <span style={{ color: '#94a3b8' }}>—</span>
+  }
+
+  const meta = ORDER_STATUS_META[normalized] ?? {
+    label: orderStatus,
+    color: '#334155',
+    background: '#f8fafc',
+    dot: '#94a3b8'
+  }
+
+  return (
+    <span
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 6,
+        padding: '3px 9px',
+        borderRadius: 6,
+        border: `1px solid ${meta.dot}`,
+        background: meta.background,
+        color: meta.color,
+        fontSize: 12,
+        fontWeight: 600
+      }}
+    >
+      <span style={{ width: 7, height: 7, borderRadius: 9999, background: meta.dot }} />
+      {meta.label}
+    </span>
+  )
 }
 
 const headerCellStyle = {
