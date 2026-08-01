@@ -139,8 +139,18 @@ builder.Services.AddQuartzHostedService(options =>
     options.WaitForJobsToComplete = true;
 });
 
+var connectionString = builder.Configuration.GetConnectionString("Default");
+if (string.IsNullOrWhiteSpace(connectionString)
+    || connectionString.Contains("<set", StringComparison.OrdinalIgnoreCase))
+{
+    throw new InvalidOperationException(
+        "Connection string 'ConnectionStrings:Default' is not configured. " +
+        "Set it via user-secrets, e.g.: dotnet user-secrets set \"ConnectionStrings:Default\" " +
+        "\"<azure-sql-connection-string>\" --project Wismo.Api");
+}
+
 builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseSqlite(builder.Configuration.GetConnectionString("Default") ?? "Data Source=wismo.db"));
+    options.UseSqlServer(connectionString));
 
 builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 builder.Services.AddScoped<ITenantRepository, TenantRepository>();
