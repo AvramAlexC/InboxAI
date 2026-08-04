@@ -150,7 +150,11 @@ if (string.IsNullOrWhiteSpace(connectionString)
 }
 
 builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseSqlServer(connectionString));
+    options.UseSqlServer(connectionString, sql =>
+    {
+        sql.EnableRetryOnFailure(maxRetryCount: 8, maxRetryDelay: TimeSpan.FromSeconds(30), errorNumbersToAdd: null);
+        sql.CommandTimeout(60);
+    }));
 
 builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 builder.Services.AddScoped<ITenantRepository, TenantRepository>();
