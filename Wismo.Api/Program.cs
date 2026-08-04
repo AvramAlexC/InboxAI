@@ -117,22 +117,53 @@ builder.Services.AddScoped<IAwbStatusSyncService, AwbStatusSyncService>();
 builder.Services.AddSingleton<ITenantNotificationService, TenantNotificationService>();
 builder.Services.AddSignalR();
 
+// The AWB sync job is only worth scheduling when a courier is actually reachable.
+// With the example/placeholder base URLs every run fails and floods the logs.
+var courierOptions = builder.Configuration.GetSection("Couriers").Get<CourierIntegrationOptions>()
+    ?? new CourierIntegrationOptions();
+var courierBaseUrls = new[]
+{
+    courierOptions.Sameday.BaseUrl,
+    courierOptions.FanCourier.BaseUrl,
+    courierOptions.Cargus.BaseUrl
+};
+var awbSyncEnabled = courierBaseUrls.Any(IsUsableCourierBaseUrl);
+
 builder.Services.AddQuartz(quartz =>
 {
-    var jobKey = new JobKey("awb-status-update-job");
-    quartz.AddJob<AwbStatusUpdateJob>(options => options.WithIdentity(jobKey));
-
-    var cronExpression = builder.Configuration["AwbTracking:Cron"];
-    if (string.IsNullOrWhiteSpace(cronExpression))
+    if (awbSyncEnabled)
     {
-        cronExpression = "0 */10 * * * ?";
+        var jobKey = new JobKey("awb-status-update-job");
+        quartz.AddJob<AwbStatusUpdateJob>(options => options.WithIdentity(jobKey));
+
+        var cronExpression = builder.Configuration["AwbTracking:Cron"];
+        if (string.IsNullOrWhiteSpace(cronExpression))
+        {
+            cronExpression = "0 */10 * * * ?";
+        }
+
+        quartz.AddTrigger(options => options
+            .ForJob(jobKey)
+            .WithIdentity("awb-status-update-trigger")
+            .WithCronSchedule(cronExpression, cron => cron.InTimeZone(TimeZoneInfo.Local)));
+    }
+});
+
+static bool IsUsableCourierBaseUrl(string? baseUrl)
+{
+    if (string.IsNullOrWhiteSpace(baseUrl))
+    {
+        return false;
     }
 
-    quartz.AddTrigger(options => options
-        .ForJob(jobKey)
-        .WithIdentity("awb-status-update-trigger")
-        .WithCronSchedule(cronExpression, cron => cron.InTimeZone(TimeZoneInfo.Local)));
-});
+    if (!Uri.TryCreate(baseUrl, UriKind.Absolute, out var uri))
+    {
+        return false;
+    }
+
+    return !uri.Host.EndsWith(".example", StringComparison.OrdinalIgnoreCase)
+        && !uri.Host.Equals("example", StringComparison.OrdinalIgnoreCase);
+}
 
 builder.Services.AddQuartzHostedService(options =>
 {
@@ -249,6 +280,13 @@ builder.Services.AddHttpClient<ITicketAiProcessor, OpenAIProcessorService>(clien
 });
 
 var app = builder.Build();
+
+if (!awbSyncEnabled)
+{
+    app.Logger.LogWarning(
+        "AWB status sync job not scheduled: courier base URL is not configured ({CourierBaseUrls}).",
+        string.Join(", ", courierBaseUrls.Select(url => string.IsNullOrWhiteSpace(url) ? "<empty>" : url)));
+}
 
 app.UseExceptionHandler();
 
