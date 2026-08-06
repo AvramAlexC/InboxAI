@@ -21,7 +21,7 @@ flowchart LR
     Client[React 18 + Vite<br/>SPA] -->|REST + SignalR| API[ASP.NET Core 8<br/>Minimal API]
     Shopify[Shopify Store] -->|OAuth + Webhooks| API
     API -->|MediatR<br/>+ FluentValidation| Handlers[CQRS Handlers]
-    Handlers --> DB[(SQLite<br/>tenant-scoped via global query filter)]
+    Handlers --> DB[(Azure SQL<br/>tenant-scoped via global query filter)]
     Handlers -->|Polly: retry + CB + timeout| OpenAI[OpenAI<br/>intent + draft]
     Quartz[Quartz.NET<br/>cron job] -->|periodic AWB sync| Couriers[Sameday / FanCourier / Cargus]
     Handlers --> Couriers
@@ -37,12 +37,11 @@ flowchart LR
 **Backend** (`Wismo.Api/`)
 - ASP.NET Core 8 Minimal API
 - MediatR 14 (CQRS) + FluentValidation pipeline behavior
-- EF Core 8 + SQLite (file-based, `wismo.db`, `EnsureCreated` on startup)
+- EF Core 8 + SQL Server — Azure SQL in production, migrations applied at startup; `EnableRetryOnFailure` (8 attempts, 30s cap) to survive serverless cold starts
 - Polly via `Microsoft.Extensions.Http.Polly` — retry, circuit breaker, and per-attempt timeout on the OpenAI client
 - Quartz.NET hosted service for cron jobs
 - SignalR for real-time tenant dashboard updates
 - JWT bearer auth (`System.IdentityModel.Tokens.Jwt`)
-- `Microsoft.Extensions.Hosting.WindowsServices` — runs as a Windows Service in production, no-op from a console
 - Swashbuckle for Swagger in Development
 
 **Frontend** (`wismo-ui/`)
@@ -70,7 +69,9 @@ cd Wismo.Api
 cp appsettings.Example.json appsettings.json   # then fill in OpenAI:ApiKey, Jwt:SigningKey
 dotnet run
 ```
-Default URL: `http://localhost:5255` (Swagger at `/swagger`, health at `/health`). The SQLite file is created automatically on first run and seeded with a demo tenant.
+Set `ConnectionStrings:Default` to a local SQL Server or LocalDB instance, then run `dotnet ef database update` before the first `dotnet run`. There is no SQLite fallback — the connection string is validated fail-fast at startup.
+
+Default URL: `http://localhost:5255` (Swagger at `/swagger`, health at `/health`).
 
 **Frontend**
 ```bash
@@ -113,13 +114,17 @@ Trade-off I'll own: tenant scope isn't visible in any individual handler without
 
 ## Deployment
 
-Hosting target is a Windows host running the API as a Windows Service via `Microsoft.Extensions.Hosting.WindowsServices`. App binaries live under `C:\wismo\app`; the SQLite database and logs live under `C:\wismo\data` so they survive redeploys. The service is registered as `WismoApi`:
+Live on Azure App Service (Linux, Sweden Central) at `https://inboxai-c8csf5awegetfphw.swedencentral-01.azurewebsites.net`.
 
-```powershell
-sc.exe create WismoApi binPath= "C:\wismo\app\Wismo.Api.exe" start= auto
-```
+**Data.** Azure SQL, serverless tier with a 60-minute auto-pause. EF Core migrations run on startup.
 
-Liveness is `GET /health`, which returns `200 OK` when the host is up.
+**Auth to the database.** The SQL server is configured for Microsoft Entra authentication only — SQL auth is disabled at the server level. The App Service uses a system-assigned managed identity, mapped to a contained database user via `CREATE USER [inboxai] FROM EXTERNAL PROVIDER`. The connection string carries `Authentication=Active Directory Default` and no credentials; there are no passwords in App Settings.
+
+**Cold starts.** Auto-pause means the first request after an idle period hits a database that is still resuming, and EF Core surfaces `SqlException 40613`. Without a retry policy the host would fail its startup migration and restart, looping for roughly 13 minutes before the database happened to be awake at the right moment. Adding `EnableRetryOnFailure(maxRetryCount: 8, maxRetryDelay: 30s)` plus a 60-second command timeout brought first-request-to-`200` down to ~70 seconds, with two logged retries backing off at 5.0s and 6.0s.
+
+**Deploy.** Manual, via `az webapp deploy --type zip --clean true`, with the startup command pinned to `dotnet Wismo.Api.dll`. `--clean` matters: without it, stale artifacts from a previous deploy stay in `/home/site/wwwroot` and Oryx can pick the wrong entry point. Publishing the `.sln` rather than the specific `.csproj` produces multiple `.runtimeconfig.json` files and breaks startup detection for the same reason.
+
+**Health.** `GET /health` returns `200 OK` when the host is up.
 
 ---
 
@@ -127,11 +132,13 @@ Liveness is `GET /health`, which returns `200 OK` when the host is up.
 
 Honest list of gaps, since it matters:
 
-- **No Docker / docker-compose.** Backend and frontend are run separately for now.
-- **No CD beyond the build/test workflow.** No Azure, no infra-as-code; deploys to the Windows host are manual.
-- **No EF Core migrations.** Schema is created via `EnsureCreated()` plus raw SQL for two tables. Migrations come before the first real deploy.
-- **No integration tests.** Handler-level tests only; Testcontainers + a real Postgres are planned.
-- **Shopify scope declarations pending migration to `shopify.app.toml` + CLI deploy.** OAuth onboarding completes, but the `Scopes` column on `ShopifyStoreConnections` comes back empty until scopes are declared in `shopify.app.toml` and pushed via `shopify app deploy`.
+- **No CD.** GitHub Actions builds and tests on push, but deploys are still a manual CLI step.
+- **No Key Vault.** Secrets live in App Settings. The database no longer needs one; the OpenAI key and JWT signing key still do.
+- **Free tier constraints.** The App Service runs on F1, which has no Always On — the Quartz cron job can't be relied on to fire while the app is idle. Moving to B1 is blocked on regional quota.
+- **Demo seed data still runs in production.** The startup seed isn't gated on `IsDevelopment()` yet.
+- **No Docker / docker-compose.** Backend and frontend are run separately.
+- **No integration tests.** Handler-level tests only (198 of them); Testcontainers against a real SQL Server is the next step.
+- **Shopify scope declarations pending migration to `shopify.app.toml` + CLI deploy.** OAuth onboarding completes, but the `Scopes` column on `ShopifyStoreConnections` comes back empty until scopes are declared and pushed via `shopify app deploy`.
 
 ---
 
